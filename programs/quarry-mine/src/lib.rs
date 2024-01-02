@@ -369,6 +369,39 @@ pub mod quarry_mine {
         Ok(())
     }
 
+    pub fn claim_tokens(ctx: Context<ClaimTokens>) -> ProgramResult {
+        let amount = ctx.accounts.miner_token_account.amount;
+
+        if amount <= 1 {
+            // don't allow to withdraw NFTs using this instruction
+            return Err(ErrorCode::NotEnoughTokens.into());
+        }
+
+        // Sign a transfer instruction as the [Miner]
+        let miner_seeds = &[
+            b"Miner".as_ref(),
+            ctx.accounts.miner.quarry_key.as_ref(),
+            ctx.accounts.miner.authority.as_ref(),
+            &[ctx.accounts.miner.bump],
+        ];
+        let signer_seeds = &[&miner_seeds[..]];
+        let cpi_accounts = token::Transfer {
+            from: ctx.accounts.miner_token_account.to_account_info(),
+            to: ctx.accounts.authority_token_account.to_account_info(),
+            authority: ctx.accounts.miner.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            signer_seeds,
+        );
+
+        // Transfer out tokens from ATA of the miner account
+        token::transfer(cpi_ctx, amount)?;
+
+        Ok(())
+    }
+
     /// Claims rewards for the [Miner].
     #[access_control(ctx.accounts.validate())]
     pub fn claim_rewards(ctx: Context<ClaimRewards>) -> ProgramResult {
@@ -823,6 +856,31 @@ pub struct ClaimRewards<'info> {
 
     /// Claim accounts
     pub stake: UserClaim<'info>,
+}
+
+/// ClaimTokens accounts
+#[derive(Accounts)]
+pub struct ClaimTokens<'info> {
+    /// Miner authority (i.e. the user).
+    pub authority: Signer<'info>,
+
+    /// Miner.
+    #[account(mut)]
+    pub miner: Account<'info, Miner>,
+
+    /// Mint of the token.
+    pub mint: Account<'info, Mint>,
+
+    /// Account to claim tokens from.
+    #[account(mut)]
+    pub miner_token_account: Box<Account<'info, TokenAccount>>,
+
+    /// Account to claim tokens to.
+    #[account(mut)]
+    pub authority_token_account: Box<Account<'info, TokenAccount>>,
+
+    /// Token program
+    pub token_program: Program<'info, Token>,
 }
 
 /// Claim accounts
