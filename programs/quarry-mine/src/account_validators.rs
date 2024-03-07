@@ -7,6 +7,7 @@ use vipers::validate::Validate;
 use vipers::{assert_ata, assert_keys_eq};
 
 use crate::addresses;
+use crate::ClaimTokens;
 use crate::{
     AcceptAuthority, ClaimRewards, CreateMiner, CreateQuarry, ExtractFees,
     MutableRewarderWithAuthority, MutableRewarderWithPauseAuthority, NewRewarder,
@@ -216,6 +217,41 @@ impl<'info> UserStake<'info> {
 
         // rewarder
         assert_keys_eq!(self.quarry.rewarder_key, self.rewarder, "rewarder");
+
+        Ok(())
+    }
+}
+
+impl<'info> Validate<'info> for ClaimTokens<'info> {
+    /// Validates a [ClaimTokens] accounts struct.
+    fn validate(&self) -> ProgramResult {
+        // authority
+        require!(self.authority.is_signer, Unauthorized);
+        assert_keys_eq!(self.authority, self.miner.authority, "miner authority");
+
+        // miner_token_account
+        assert_keys_eq!(
+            self.miner_token_account.mint,
+            self.mint,
+            "miner_token_account.mint",
+        );
+        assert_keys_eq!(
+            self.miner_token_account.owner,
+            self.miner,
+            "miner_token_account.mint"
+        );
+
+        // authority_token_account
+        assert_keys_eq!(
+            self.authority_token_account.mint,
+            self.mint,
+            "authority_token_account.mint",
+        );
+        assert_keys_eq!(
+            self.authority_token_account.owner,
+            self.authority,
+            "authority_token_account.mint"
+        );
 
         Ok(())
     }
